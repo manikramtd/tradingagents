@@ -25,13 +25,17 @@ def run():
         "notes": "weekend agent placeholder run"
     }
 
-    log(f"weekend: inserting row into {table}")
-    errors = bq.insert_rows_json(table, [row], timeout=30)
+       log(f"weekend: inserting row into {table}")
+    try:
+        errors = bq.insert_rows_json(table, [row], timeout=30)
+    except Exception as e:
+        log(f"weekend: bq insert raised: {repr(e)}")
+        raise
     if errors:
-        log(f"weekend: bq errors -> {errors}")
+        log(f"weekend: bq insert returned row errors: {errors}")
         raise RuntimeError(f"BigQuery insert errors: {errors}")
-
     log("weekend: bq insert ok")
+
 
     if discord:
         try:
