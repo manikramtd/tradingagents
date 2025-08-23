@@ -1,0 +1,52 @@
+substitutions:
+  _REGION: us-central1
+  _JOB_NAME: weekend-agent
+  _REPO: containers
+steps:
+# 1) Build container from job-weekend/
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build','-t','${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}','./job-weekend']
+
+# 2) Push image
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push','${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}']
+
+# 3) Create or update the Cloud Run Job
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    [
+      'run','jobs','describe','${_JOB_NAME}',
+      '--region','${_REGION}'
+    ]
+  id: 'check-job'
+  allowFailure: true
+
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    [
+      'run','jobs','create','${_JOB_NAME}',
+      '--image','${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}',
+      '--region','${_REGION}',
+      '--service-account','trading-runtime@${PROJECT_ID}.iam.gserviceaccount.com',
+      '--set-env-vars','PROJECT_ID=${PROJECT_ID},BQ_DATASET=trading',
+      '--set-secrets','DISCORD_WEBHOOK=DISCORD_WEBHOOK:latest',
+      '--max-retries','0',
+      '--task-timeout','120s'
+    ]
+  entrypoint: 'bash'
+  args: ['-c','gcloud run jobs describe ${_JOB_NAME} --region ${_REGION} >/dev/null 2>&1 || "$0" "$@"']
+  waitFor: ['check-job']
+
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    [
+      'run','jobs','update','${_JOB_NAME}',
+      '--image','${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}',
+      '--region','${_REGION}',
+      '--set-env-vars','PROJECT_ID=${PROJECT_ID},BQ_DATASET=trading',
+      '--set-secrets','DISCORD_WEBHOOK=DISCORD_WEBHOOK:latest',
+      '--service-account','trading-runtime@${PROJECT_ID}.iam.gserviceaccount.com'
+    ]
+  waitFor: ['check-job']
+images:
+- '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}'
