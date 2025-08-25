@@ -4,22 +4,36 @@ substitutions:
   _REPO: containers
 
 steps:
-# 1) Build the Docker image
+# DEBUG: prove the files are where we expect inside the build
+- name: 'alpine'
+  entrypoint: 'sh'
+  args:
+    - -ceu
+    - |
+      echo "PWD: $(pwd)"
+      ls -la
+      echo "---- job-weekend ----"
+      ls -la job-weekend || true
+      echo "---- Dockerfile ----"
+      sed -n '1,120p' job-weekend/Dockerfile || true
+      echo "---- requirements.txt ----"
+      sed -n '1,120p' job-weekend/requirements.txt || true
+
+# 1) Build the Docker image (explicit -f and context)
 - name: 'gcr.io/cloud-builders/docker'
-  args: [
-    'build',
-    '-t','${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}',
-    './job-weekend'
-  ]
+  args:
+    [
+      'build',
+      '-f','job-weekend/Dockerfile',
+      '-t','${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}',
+      'job-weekend'
+    ]
 
 # 2) Push the Docker image
 - name: 'gcr.io/cloud-builders/docker'
-  args: [
-    'push',
-    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}'
-  ]
+  args: ['push','${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}']
 
-# 3) Try to create the Cloud Run Job (ignore error if it exists)
+# 3) Create (ignore if exists)
 - name: 'gcr.io/cloud-builders/gcloud'
   entrypoint: 'bash'
   args:
@@ -32,9 +46,9 @@ steps:
         --set-env-vars PROJECT_ID=${PROJECT_ID},BQ_DATASET=trading \
         --set-secrets DISCORD_WEBHOOK=DISCORD_WEBHOOK:latest \
         --max-retries 0 --task-timeout 120s \
-      || echo "Job already exists, skipping create"
+      || echo "Job already exists, continuing."
 
-# 4) Always update the Job to use the new image & env
+# 4) Always update to the new image & env
 - name: 'gcr.io/cloud-builders/gcloud'
   args:
     [
@@ -45,8 +59,12 @@ steps:
       '--set-secrets','DISCORD_WEBHOOK=DISCORD_WEBHOOK:latest',
       '--service-account','trading-runtime@${PROJECT_ID}.iam.gserviceaccount.com'
     ]
+
 options:
-  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
-  
+  # pick ONE of these (this one keeps logs in Cloud Logging only)
+  logging: CLOUD_LOGGING_ONLY
+  # OR use the regional user-owned bucket if you prefer:
+  # defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
+
 images:
 - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}'
