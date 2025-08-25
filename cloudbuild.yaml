@@ -45,6 +45,8 @@ steps:
       '--set-secrets','DISCORD_WEBHOOK=DISCORD_WEBHOOK:latest',
       '--service-account','trading-runtime@${PROJECT_ID}.iam.gserviceaccount.com'
     ]
-
+options:
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
+  
 images:
 - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB_NAME}:${COMMIT_SHA}'
