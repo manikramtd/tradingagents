@@ -1,6 +1,7 @@
 import os, uuid, datetime as dt, sys
 from google.cloud import bigquery
 import requests
+import traceback
 
 def log(msg):
     print(msg); sys.stdout.flush()
@@ -28,6 +29,11 @@ def run():
     errors = bq.insert_rows(table, rows_to_insert)  # returns a list of errors
     if errors:
         log(f"weekend: insert returned errors: {errors}")
+        log("weekend: DML insert failed!")
+        log(f"Error type: {type(e).__name__}")
+        log(f"Error message: {str(e)}")
+        log("Full traceback:")
+        traceback.print_exc()
         raise RuntimeError(f"BigQuery insert errors: {errors}")
 
     log("weekend: bq insert ok")
